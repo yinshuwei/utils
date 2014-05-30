@@ -1,10 +1,14 @@
 package utils
 
 import (
+	"io"
 	"log"
 	"os"
 	"strings"
 )
+
+var LogOutput io.Writer = os.Stdout
+var LogFlag int = 0
 
 /**
  * defer utils.SetLogOutPut("logs/logfile.txt")()
@@ -29,7 +33,7 @@ func SetLogOutPut(path string) func() {
 		}
 	}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		panic(err)
 	}
@@ -38,6 +42,7 @@ func SetLogOutPut(path string) func() {
 		panic(err)
 	}
 
+	LogOutput = f
 	log.SetOutput(f)
 
 	return func() {
@@ -69,4 +74,9 @@ func checkAndMkParentDir(path string) error {
 		}
 	}
 	return nil
+}
+
+func SetLogFlags(flag int) {
+	LogFlag = flag
+	log.SetFlags(flag)
 }
