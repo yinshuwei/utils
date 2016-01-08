@@ -38,10 +38,6 @@ func SetLogOutPut(path string) func() {
 		panic(err)
 	}
 
-	if err != nil {
-		panic(err)
-	}
-
 	LogOutput = f
 	log.SetOutput(f)
 
