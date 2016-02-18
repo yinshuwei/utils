@@ -230,10 +230,9 @@ func (client *Client) JsonCall(queue string, serviceMethod string, args *[]byte,
 		select {
 		case call := <-c.Go(serviceMethod, args, reply, make(chan *rpc.Call, 1)).Done:
 			return call.Error
-		case <-timeout.C:
+		case <-timeout.C: //3s timeout
 			return errors.New("timeout")
 		}
-
 	}
 }
 func (client *Client) jsonClient(queue string) (*rpc.Client, error) {
@@ -274,11 +273,12 @@ func (client *Client) jsonClient(queue string) (*rpc.Client, error) {
 		return nil, errors.New("Failed to register a consumer")
 	}
 	codec := &jsonClientCodec{
-		queue:   queue,
-		replyTo: q.Name,
-		ch:      ch,
-		msgs:    msgs,
-		pending: make(map[uint64]string),
+		queue:     queue,
+		replyTo:   q.Name,
+		ch:        ch,
+		msgs:      msgs,
+		pending:   make(map[uint64]string),
+		clientMap: client.clientMap,
 	}
 	c = rpc.NewClientWithCodec(codec)
 	client.clientMap[queue] = c
@@ -287,13 +287,14 @@ func (client *Client) jsonClient(queue string) (*rpc.Client, error) {
 
 type jsonClientCodec struct {
 	sync.Mutex
-	queue   string
-	replyTo string
-	req     jsonClientRequest
-	resp    jsonClientResponse
-	ch      *amqp.Channel
-	msgs    <-chan amqp.Delivery
-	pending map[uint64]string
+	queue     string
+	replyTo   string
+	req       jsonClientRequest
+	resp      jsonClientResponse
+	ch        *amqp.Channel
+	msgs      <-chan amqp.Delivery
+	pending   map[uint64]string
+	clientMap map[string]*rpc.Client
 }
 
 type jsonClientRequest struct {
@@ -338,31 +339,41 @@ func (c *jsonClientCodec) WriteRequest(r *rpc.Request, body interface{}) error {
 }
 
 func (c *jsonClientCodec) ReadResponseHeader(r *rpc.Response) error {
-	msg := <-c.msgs
-	c.resp.reset()
-	if err := json.Unmarshal(msg.Body, &c.resp); err != nil {
-		return err
-	}
-	seq, err := strconv.ParseUint(msg.CorrelationId, 0, 64)
-	if err != nil {
-		return err
-	}
-	c.Lock()
-	r.Seq = seq
-	r.ServiceMethod = c.pending[seq]
-	delete(c.pending, seq)
-	c.Unlock()
+	timeout := time.NewTimer(time.Second * 3600)
+	select {
+	case msg := <-c.msgs:
+		c.resp.reset()
+		if err := json.Unmarshal(msg.Body, &c.resp); err != nil {
+			return err
+		}
+		seq, err := strconv.ParseUint(msg.CorrelationId, 0, 64)
+		if err != nil {
+			return err
+		}
+		c.Lock()
+		r.Seq = seq
+		r.ServiceMethod = c.pending[seq]
+		delete(c.pending, seq)
+		c.Unlock()
 
-	r.Error = ""
-	if c.resp.Error != nil || c.resp.Result == nil {
-		x, ok := c.resp.Error.(string)
-		if !ok {
-			return fmt.Errorf("invalid error %v", c.resp.Error)
+		r.Error = ""
+		if c.resp.Error != nil || c.resp.Result == nil {
+			x, ok := c.resp.Error.(string)
+			if !ok {
+				return fmt.Errorf("invalid error %v", c.resp.Error)
+			}
+			if x == "" {
+				x = "unspecified error"
+			}
+			r.Error = x
 		}
-		if x == "" {
-			x = "unspecified error"
+	case <-timeout.C: //clear queue when 1 hour no message
+		if client, ok := c.clientMap[c.queue]; ok {
+			client.Close()
+			delete(c.clientMap, c.queue)
+			c.Close()
 		}
-		r.Error = x
+		return errors.New("timeout")
 	}
 	return nil
 }
