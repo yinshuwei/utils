@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -224,7 +225,15 @@ func (client *Client) JsonCall(queue string, serviceMethod string, args *[]byte,
 	if c, err := client.jsonClient(queue); err != nil {
 		return err
 	} else {
-		return c.Call(serviceMethod, args, reply)
+		// return c.Call(serviceMethod, args, reply)
+		timeout := time.NewTimer(time.Second * 3)
+		select {
+		case call := <-c.Go(serviceMethod, args, reply, make(chan *rpc.Call, 1)).Done:
+			return call.Error
+		case <-timeout.C:
+			return errors.New("timeout")
+		}
+
 	}
 }
 func (client *Client) jsonClient(queue string) (*rpc.Client, error) {

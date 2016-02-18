@@ -62,7 +62,7 @@ func (t *Arith) Error(args *Args, reply *Reply) error {
 }
 
 func init() {
-	flag.StringVar(&url, "url", "amqp://guest:guest@localhost:5672/", "amqp url for testing")
+	flag.StringVar(&url, "url", "amqp://user1:123456@localhost:5672/", "amqp url for testing")
 	queue = "rpc.test"
 }
 
