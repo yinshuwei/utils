@@ -368,11 +368,7 @@ func (c *jsonClientCodec) ReadResponseHeader(r *rpc.Response) error {
 			r.Error = x
 		}
 	case <-timeout.C: //clear queue when 1 hour no message
-		if client, ok := c.clientMap[c.queue]; ok {
-			client.Close()
-			delete(c.clientMap, c.queue)
-			c.Close()
-		}
+		c.Close()
 		return errors.New("timeout")
 	}
 	return nil
@@ -387,5 +383,9 @@ func (c *jsonClientCodec) ReadResponseBody(body interface{}) error {
 }
 
 func (c *jsonClientCodec) Close() error {
+	if client, ok := c.clientMap[c.queue]; ok {
+		client.Close()
+		delete(c.clientMap, c.queue)
+	}
 	return c.ch.Close()
 }
