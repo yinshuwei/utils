@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/rpc"
 	"strconv"
 	"sync"
@@ -15,6 +16,7 @@ import (
 var ErrShutdown = rpc.ErrShutdown
 
 type Client struct {
+	url       string
 	mu        sync.Mutex
 	conn      *amqp.Connection
 	clientMap map[string]*rpc.Client
@@ -26,14 +28,25 @@ func Dial(url string) (*Client, error) {
 	if conn, err := amqp.Dial(url); err != nil {
 		return nil, errors.New("Failed to connect to MQServer: " + err.Error())
 	} else {
-		return NewClientWithConn(conn), nil
+		return NewClientWithConn(conn, url), nil
 	}
 }
 
-func NewClientWithConn(conn *amqp.Connection) *Client {
+func NewClientWithConn(conn *amqp.Connection, url string) *Client {
 	return &Client{
+		url:       url,
 		conn:      conn,
 		clientMap: make(map[string]*rpc.Client),
+	}
+}
+
+//reconn to MQ Server
+func (client *Client) reconn() {
+	if conn, err := amqp.Dial(client.url); err != nil {
+		log.Println(err)
+	} else {
+		log.Println("reconn")
+		client.conn = conn
 	}
 }
 
@@ -93,6 +106,7 @@ func (client *Client) client(queue string) (*rpc.Client, error) {
 	}
 	ch, err := client.conn.Channel()
 	if err != nil {
+		client.reconn()
 		return nil, errors.New("Failed to open a channel")
 	}
 	q, err := ch.QueueDeclare(
@@ -247,6 +261,7 @@ func (client *Client) jsonClient(queue string) (*rpc.Client, error) {
 	}
 	ch, err := client.conn.Channel()
 	if err != nil {
+		client.reconn()
 		return nil, errors.New("Failed to open a channel")
 	}
 	q, err := ch.QueueDeclare(
@@ -339,7 +354,7 @@ func (c *jsonClientCodec) WriteRequest(r *rpc.Request, body interface{}) error {
 }
 
 func (c *jsonClientCodec) ReadResponseHeader(r *rpc.Response) error {
-	timeout := time.NewTimer(time.Second * 3600)
+	timeout := time.NewTimer(time.Second * 3)
 	select {
 	case msg := <-c.msgs:
 		c.resp.reset()
@@ -383,9 +398,6 @@ func (c *jsonClientCodec) ReadResponseBody(body interface{}) error {
 }
 
 func (c *jsonClientCodec) Close() error {
-	if client, ok := c.clientMap[c.queue]; ok {
-		client.Close()
-		delete(c.clientMap, c.queue)
-	}
+	delete(c.clientMap, c.queue)
 	return c.ch.Close()
 }
