@@ -354,7 +354,7 @@ func (c *jsonClientCodec) WriteRequest(r *rpc.Request, body interface{}) error {
 }
 
 func (c *jsonClientCodec) ReadResponseHeader(r *rpc.Response) error {
-	timeout := time.NewTimer(time.Second * 3)
+	timeout := time.NewTimer(time.Second * 3600)
 	select {
 	case msg := <-c.msgs:
 		c.resp.reset()
