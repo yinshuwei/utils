@@ -43,7 +43,7 @@ func (server *Server) ServeConn(conn *amqp.Connection, queue string) {
 	q, err := ch.QueueDeclare(
 		queue, // name
 		false, // durable
-		false, // delete when usused
+		true,  // delete when usused
 		false, // exclusive
 		false, // noWait
 		nil,   // arguments
