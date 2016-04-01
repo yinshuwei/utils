@@ -270,7 +270,7 @@ func (client *Client) jsonClient(queue string) (*rpc.Client, error) {
 		false, // delete when usused
 		true,  // exclusive
 		false, // noWait
-		amqp.Table{"message-ttl": 1000}, // arguments
+		nil,   // arguments
 	)
 	if err != nil {
 		return nil, errors.New("Failed to declare a queue")
