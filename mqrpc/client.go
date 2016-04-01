@@ -115,7 +115,7 @@ func (client *Client) client(queue string) (*rpc.Client, error) {
 		false, // delete when usused
 		true,  // exclusive
 		false, // noWait
-		nil,   // arguments
+		amqp.Table{"message-ttl": 1000}, // arguments
 	)
 	if err != nil {
 		return nil, errors.New("Failed to declare a queue")
