@@ -7,12 +7,11 @@ import (
 	"strings"
 )
 
-var LogOutput io.Writer = os.Stdout
-var LogFlag int = 0
+var logOutput io.Writer = os.Stdout
+var logFlag int
 
-/**
- * defer utils.SetLogOutPut("logs/logfile.txt")()
- **/
+// SetLogOutPut SetLogOutPut
+// defer utils.SetLogOutPut("logs/logfile.txt")()
 func SetLogOutPut(path string) func() {
 	path = strings.Replace(path, "\\", "/", -1)
 
@@ -38,7 +37,7 @@ func SetLogOutPut(path string) func() {
 		panic(err)
 	}
 
-	LogOutput = f
+	logOutput = f
 	log.SetOutput(f)
 
 	return func() {
@@ -61,18 +60,17 @@ func checkAndMkParentDir(path string) error {
 				err := checkAndMkParentDir(dir)
 				if err != nil {
 					return err
-				} else {
-					return os.Mkdir(dir, os.ModePerm)
 				}
-			} else {
-				return err
+				return os.Mkdir(dir, os.ModePerm)
 			}
+			return err
 		}
 	}
 	return nil
 }
 
+// SetLogFlags SetLogFlags
 func SetLogFlags(flag int) {
-	LogFlag = flag
+	logFlag = flag
 	log.SetFlags(flag)
 }
